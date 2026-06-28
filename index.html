@@ -636,6 +636,100 @@
 }
 /* FIM PATCH CÉREBRO IA — Correção página texto bugada */
 
+
+/* PATCH CÉREBRO IA — Chat estilo consultor */
+.chat-shell{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 300px;
+  gap:16px;
+}
+.chat-panel{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:26px;
+  padding:18px;
+  box-shadow:var(--shadow);
+}
+.chat-history{
+  min-height:360px;
+  max-height:520px;
+  overflow:auto;
+  background:linear-gradient(135deg,#faf7ff,#fff);
+  border:1px solid #ece7ff;
+  border-radius:22px;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.msg{
+  max-width:82%;
+  border-radius:20px;
+  padding:12px 14px;
+  line-height:1.55;
+  font-size:13px;
+  white-space:pre-wrap;
+}
+.msg.user{
+  align-self:flex-end;
+  background:linear-gradient(90deg,var(--primary),var(--primary2));
+  color:#fff;
+  border-bottom-right-radius:6px;
+}
+.msg.ai{
+  align-self:flex-start;
+  background:#fff;
+  border:1px solid #e7eaf2;
+  color:#182033;
+  border-bottom-left-radius:6px;
+}
+.chat-input-box{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:10px;
+  margin-top:12px;
+}
+.chat-input-box textarea{
+  min-height:92px;
+  border-radius:22px;
+  padding:14px;
+}
+.quick-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:12px 0;
+}
+.quick-actions button{
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:999px;
+  padding:8px 12px;
+  font-weight:900;
+  color:#475467;
+}
+.context-card{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:22px;
+  padding:14px;
+  box-shadow:var(--shadow);
+}
+.context-card h3{margin-top:0}
+.context-list{
+  display:grid;
+  gap:8px;
+}
+.context-list div{
+  border:1px solid #eef1f6;
+  border-radius:14px;
+  padding:9px;
+  background:#fafbff;
+}
+@media(max-width:1050px){
+  .chat-shell{grid-template-columns:1fr}
+}
+
 </style>
 </head>
 <body>
@@ -2574,6 +2668,194 @@ function tabText(){
   `;
 }
 /* FIM PATCH CÉREBRO IA — Texto organizado sem quebrar layout */
+
+
+/* PATCH CÉREBRO IA — Chat estilo CulturaLab próprio */
+function ensureChat(){
+  const p = project();
+  p.chat = p.chat || [
+    {
+      role:'ai',
+      text:'Olá, Eduardo. Eu sou o consultor IA deste projeto. Posso revisar edital, melhorar textos, ajustar orçamento, conferir documentos e sugerir caminhos para aumentar a nota.'
+    }
+  ];
+  save();
+  return p.chat;
+}
+
+function tabChat(){
+  const p = project();
+  const chat = ensureChat();
+  const totalBudget = typeof budgetSum === 'function' ? budgetSum(ensureBudget ? ensureBudget() : []) : 0;
+  const teamCount = (p.team || []).length;
+  const blockCount = Object.keys(p.blocks || {}).length;
+
+  return `
+    <div class="chat-shell">
+      <div class="chat-panel">
+        <div class="between">
+          <div>
+            <h2>Chat IA do projeto</h2>
+            <p class="muted">Converse com a IA usando o contexto do edital, textos, equipe, orçamento e documentos.</p>
+          </div>
+          <span class="pill green">contexto ativo</span>
+        </div>
+
+        <div class="quick-actions">
+          <button data-action="quickChat" data-q="Analise minha planilha orçamentária e diga o que precisa melhorar.">Revisar planilha</button>
+          <button data-action="quickChat" data-q="Melhore a justificativa do projeto com foco em impacto cultural.">Melhorar justificativa</button>
+          <button data-action="quickChat" data-q="Quais documentos ainda faltam para enviar este projeto?">Checar documentos</button>
+          <button data-action="quickChat" data-q="Como aumentar a nota deste projeto?">Aumentar nota</button>
+          <button data-action="quickChat" data-q="Crie uma resposta pronta para colar no edital.">Resposta para edital</button>
+        </div>
+
+        <div class="chat-history" id="chatHistory">
+          ${chat.map(m=>`
+            <div class="msg ${m.role === 'user' ? 'user' : 'ai'}">${esc(m.text)}</div>
+          `).join('')}
+        </div>
+
+        <div class="chat-input-box">
+          <textarea id="chatMsg" placeholder="Ex: preciso da sua ajuda na planilha orçamentária..."></textarea>
+          <button class="btn primary" data-action="askIA">Enviar</button>
+        </div>
+      </div>
+
+      <aside class="context-card">
+        <h3>Contexto enviado para IA</h3>
+        <div class="context-list">
+          <div><b>Projeto:</b><br>${esc(p.title)}</div>
+          <div><b>Valor:</b><br>${money(p.budget)}</div>
+          <div><b>Planilha atual:</b><br>${money(totalBudget || 0)}</div>
+          <div><b>Equipe vinculada:</b><br>${teamCount} integrante(s)</div>
+          <div><b>Blocos escritos:</b><br>${blockCount} bloco(s)</div>
+          <div><b>Nota atual:</b><br>${p.score}/100</div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <button class="btn sm" data-action="openDebugIA">Verificar IA</button>
+      </aside>
+    </div>
+  `;
+}
+
+async function askProjectIA(question){
+  const p = project();
+  const chat = ensureChat();
+
+  if(!question.trim()){
+    toast('Digite uma pergunta para a IA.');
+    return;
+  }
+
+  chat.push({role:'user', text:question});
+  chat.push({role:'ai', text:'Analisando o projeto...'});
+  save();
+  render();
+
+  try{
+    const payload = {
+      task:'chat',
+      question,
+      project:{
+        title:p.title,
+        proponent:p.proponent,
+        budget:p.budget,
+        city:p.city,
+        uf:p.uf,
+        edital:p.edital,
+        score:p.score,
+        progress:p.progress,
+        details:p.details || {},
+        blocks:p.blocks || {},
+        team:(p.team || []).map(id=>teamObj(id)).filter(Boolean),
+        budgetRows:p.budgetRows || []
+      }
+    };
+
+    const response = await fetch('/api/ia', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(()=>({}));
+
+    chat.pop();
+
+    if(!response.ok || data.error){
+      chat.push({
+        role:'ai',
+        text:`Não consegui conectar com a IA agora.
+
+Possíveis causas:
+1. OPENAI_API_KEY não foi cadastrada na Vercel.
+2. O projeto precisa de Redeploy após cadastrar a variável.
+3. O modelo configurado não está disponível.
+4. A rota /api/ia retornou erro.
+
+Detalhe técnico: ${data.error || data.message || 'erro desconhecido'}`
+      });
+      save();
+      render();
+      toast('IA não conectou. Veja a resposta no chat.');
+      return;
+    }
+
+    chat.push({role:'ai', text:data.output || data.message || 'A IA respondeu sem conteúdo.'});
+    save();
+    render();
+    toast(data.demo ? 'Resposta demo gerada.' : 'Resposta da IA gerada.');
+  }catch(err){
+    chat.pop();
+    chat.push({
+      role:'ai',
+      text:`Erro de conexão com a IA. Verifique se o deploy da Vercel tem as variáveis OPENAI_API_KEY, OPENAI_MODEL e APP_URL. Detalhe: ${err.message}`
+    });
+    save();
+    render();
+    toast('Erro de conexão com IA.');
+  }
+}
+
+document.addEventListener('click', e=>{
+  const b = e.target.closest('button');
+  if(!b) return;
+
+  const a = b.dataset.action;
+
+  if(!['askIA','quickChat','openDebugIA'].includes(a)) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+
+  if(a === 'askIA'){
+    return askProjectIA(document.getElementById('chatMsg')?.value || '');
+  }
+
+  if(a === 'quickChat'){
+    return askProjectIA(b.dataset.q || '');
+  }
+
+  if(a === 'openDebugIA'){
+    modal(`
+      <h2>Verificação da IA</h2>
+      <p class="muted">Checklist para resolver o erro da OpenAI.</p>
+      <div class="list">
+        <div class="item">1. A variável <b>OPENAI_API_KEY</b> está cadastrada na Vercel?</div>
+        <div class="item">2. A variável <b>OPENAI_MODEL</b> está cadastrada?</div>
+        <div class="item">3. Depois de salvar as variáveis, você fez <b>Redeploy</b>?</div>
+        <div class="item">4. A chave da OpenAI tem crédito/permissão?</div>
+        <div class="item">5. A rota <b>/api/ia</b> aparece no deploy?</div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn" data-action="closeModal">Fechar</button>
+      </div>
+    `);
+  }
+}, true);
 
 render();
 </script>
