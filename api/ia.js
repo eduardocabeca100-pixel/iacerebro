@@ -5,20 +5,20 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL || "gpt-5.5";
+    const apiKey = process.env.GROQ_API_KEY;
+    const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
     if (!apiKey) {
       return res.status(200).json({
         demo: true,
         output: respostaDemo(body),
-        message: "OPENAI_API_KEY ainda não configurada. Rodando resposta demo."
+        message: "GROQ_API_KEY ainda não configurada. Rodando resposta demo."
       });
     }
 
-    const prompt = montarPrompt(body);
+    const messages = montarMensagens(body);
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -26,10 +26,9 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model,
-        input: prompt,
-        text: {
-          verbosity: "medium"
-        }
+        messages,
+        temperature: 0.35,
+        max_tokens: 2400
       })
     });
 
@@ -37,61 +36,68 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: "Erro na OpenAI",
+        error: "Erro no Groq",
         detail: data
       });
     }
 
-    return res.status(200).json({
-      output: data.output_text || extrairTexto(data) || "A IA respondeu, mas não retornou texto legível."
-    });
+    const output = data?.choices?.[0]?.message?.content || "A IA respondeu, mas não retornou texto legível.";
+
+    return res.status(200).json({ output });
   } catch (error) {
     return res.status(500).json({
-      error: "Erro interno na rota de IA",
+      error: "Erro interno na rota de IA com Groq",
       detail: error.message
     });
   }
 }
 
-function montarPrompt(body) {
-  const task = body.task || "geral";
+function montarMensagens(body) {
+  const task = body.task || "chat";
   const project = body.project || {};
   const blockName = body.blockName || "";
   const text = body.text || "";
   const question = body.question || "";
 
-  const base = `
-Você é a IA especialista do sistema CÉREBRO IA, um SaaS para criação, revisão e aprovação de projetos culturais em editais públicos.
+  const system = `
+Você é a IA especialista do CÉREBRO IA, um sistema para criação, análise, revisão e exportação de projetos culturais para editais.
 
 Regras:
-- Escreva em português do Brasil.
+- Responda sempre em português do Brasil.
 - Use linguagem profissional de edital cultural.
-- Seja objetivo, forte e copiável.
-- Não invente dados sensíveis.
+- Escreva textos prontos para copiar e colar.
+- Seja objetivo, claro e forte.
+- Não invente CPF, CNPJ, endereço, nome de documento ou dado sensível.
 - Quando faltar dado, escreva de forma neutra e adaptável.
 - Foque em aprovação: clareza, impacto cultural, viabilidade, acessibilidade, contrapartida, orçamento e documentação.
-- Não mencione que é uma IA.
-- Não use markdown excessivo se o texto for para colar no edital.
+- Não diga que é uma IA.
+`;
 
-Projeto:
+  const contexto = `
+Contexto do projeto:
 ${JSON.stringify(project, null, 2)}
 `;
 
   if (task === "improveBlock") {
-    return `${base}
+    return [
+      { role: "system", content: system },
+      { role: "user", content: `${contexto}
 
-Tarefa: melhorar o bloco "${blockName}" para ser colado diretamente em um edital.
+Melhore o bloco "${blockName}" abaixo para ser colado diretamente em um edital.
 
 Texto atual:
 ${text}
 
-Entregue somente o texto final melhorado.`;
+Entregue somente o texto final melhorado.` }
+    ];
   }
 
   if (task === "applyAllFixes") {
-    return `${base}
+    return [
+      { role: "system", content: system },
+      { role: "user", content: `${contexto}
 
-Tarefa: melhorar todos os blocos do projeto abaixo.
+Melhore todos os blocos abaixo.
 
 Blocos:
 ${JSON.stringify(body.blocks || {}, null, 2)}
@@ -103,35 +109,42 @@ Retorne em JSON puro, sem markdown, neste formato:
   },
   "scoreSuggestion": 92,
   "summary": "resumo curto das melhorias aplicadas"
-}`;
+}` }
+    ];
   }
 
   if (task === "chat") {
-    return `${base}
+    return [
+      { role: "system", content: system },
+      { role: "user", content: `${contexto}
 
 Pergunta do usuário:
 ${question}
 
-Responda como consultor de projetos culturais, com orientação prática e aplicável ao projeto.`;
+Responda como consultor de projetos culturais. Seja prático, direto e ajude a resolver o problema dentro do projeto.` }
+    ];
   }
 
   if (task === "reviewProject") {
-    return `${base}
+    return [
+      { role: "system", content: system },
+      { role: "user", content: `${contexto}
 
-Tarefa: simular uma banca avaliadora.
-
-Avalie o projeto e retorne:
-- nota estimada de 0 a 100;
-- principais riscos;
-- melhorias obrigatórias;
-- pontos fortes;
-- checklist final.`;
+Simule uma banca avaliadora e entregue:
+1. Nota estimada de 0 a 100.
+2. Pontos fortes.
+3. Riscos de reprovação.
+4. Melhorias obrigatórias.
+5. Checklist final.` }
+    ];
   }
 
-  return `${base}
+  return [
+    { role: "system", content: system },
+    { role: "user", content: `${contexto}
 
-Tarefa geral:
-${question || text || "Ajude a melhorar este projeto cultural."}`;
+${question || text || "Ajude a melhorar este projeto cultural."}` }
+  ];
 }
 
 function respostaDemo(body) {
@@ -163,16 +176,4 @@ Aprimoramento aplicado: este bloco foi revisado para ficar mais claro, objetivo,
   }
 
   return "Resposta demo do CÉREBRO IA.";
-}
-
-function extrairTexto(data) {
-  try {
-    return data.output
-      ?.flatMap(item => item.content || [])
-      ?.map(content => content.text || "")
-      ?.join("\n")
-      ?.trim();
-  } catch {
-    return "";
-  }
 }
