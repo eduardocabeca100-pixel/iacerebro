@@ -1,0 +1,21 @@
+CÉREBRO IA — Próximo passo
+
+1. Copie .env.example para .env.local:
+   cp .env.example .env.local
+
+2. Abra .env.local e coloque sua OPENAI_API_KEY real.
+
+3. Para rodar com API local:
+   npx vercel dev --listen 5174
+
+4. Abra:
+   http://localhost:5174
+
+5. Para GitHub:
+   git init
+   git add .
+   git commit -m "primeira versao cerebro ia"
+
+6. Para Vercel:
+   npx vercel
+   npx vercel --prod

@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "preview": "vite --host 0.0.0.0",
+    "vercel-dev": "vercel dev --listen 5174",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "vercel": "latest"
+  }
+}
